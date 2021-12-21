@@ -5,7 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:ubber/model/Usuario.dart';
 import 'package:ubber/util/StatusRequisicao.dart';
+import 'package:ubber/util/UsuarioFirebase.dart';
 
 class Corrida extends StatefulWidget {
 
@@ -23,6 +25,8 @@ class _CorridaState extends State<Corrida> {
       target: LatLng(-23.557425201980767, -46.65672565205034)
   );
   Set<Marker> _marcadores = {};
+  Map<String, dynamic>? _dadosRequisicao;
+  late Position _localMotorista;
 
   //Controles para exibição na tela
   String _textoBotao = "Aceitar corrida";
@@ -61,6 +65,7 @@ class _CorridaState extends State<Corrida> {
             zoom: 19
         );
         _movimentarCamera(_posicaoCamera );
+        _localMotorista = position;
       });
 
     });
@@ -83,6 +88,7 @@ class _CorridaState extends State<Corrida> {
         );
 
         _movimentarCamera( _posicaoCamera );
+        _localMotorista = position;
       }
     });
 
@@ -126,12 +132,127 @@ class _CorridaState extends State<Corrida> {
 
   }
 
+  _recuperarReuisicao() async {
+
+    String? idRequisicao = widget.idRequisicao;
+
+    FirebaseFirestore db = FirebaseFirestore.instance;
+    DocumentSnapshot documentSnapshot = await db.collection("requisicoes")
+    .doc( idRequisicao ).get();
+
+    _dadosRequisicao = documentSnapshot.data() as Map<String, dynamic>?;
+    _adicionarListenerRequisicao();
+
+  }
+
+  _adicionarListenerRequisicao() async {
+
+    FirebaseFirestore db = FirebaseFirestore.instance;
+    String idRequisicao = _dadosRequisicao!["id"];
+    await db.collection("requisicoes")
+    .doc( idRequisicao ).snapshots().listen((snapshot){
+
+      if( snapshot.data() != null ){
+
+        Map<String, dynamic>? dados = snapshot.data();
+        String status = dados!["status"];
+
+        switch( status ){
+          case StatusRequisicao.AGUARDANDO :
+            _statusAguardando();
+            break;
+          case StatusRequisicao.A_CAMINHO :
+            _statusACAminho();
+
+            break;
+          case StatusRequisicao.VIAGEM :
+
+            break;
+          case StatusRequisicao.FINALIZADA :
+
+            break;
+
+        }
+
+      }
+
+    });
+    
+
+  }
+
+  _statusAguardando(){
+
+    _alterarBotaoPrincipal(
+        "Aceitar corrida",
+        Color(0xff1ebbd8),
+        () {
+        _aceitarCorrida();
+    });
+  }
+  _statusACAminho(){
+
+    _alterarBotaoPrincipal(
+        "A caminho do passageiro",
+        Colors.grey,
+            () {
+          _Segue();
+        });
+
+  }
+
+  _Segue(){}
+
+  _aceitarCorrida() async {
+
+    //Recuperar dados do motorista
+    Usuario motorista = await UsuarioFirebase.getDadosUsuarioLogado();
+    motorista.latitude = _localMotorista.latitude;
+    motorista.longitude = _localMotorista.longitude;
+
+    FirebaseFirestore db = FirebaseFirestore.instance;
+    String? idRequisicao = _dadosRequisicao!["id"];
+
+    db.collection("requisicoes")
+    .doc( idRequisicao ).update({
+      "motorista" : motorista.toMap(),
+      "status" : StatusRequisicao.A_CAMINHO,
+    }).then((_){
+
+      //atualiza requisicao ativa
+      String idPassageiro = _dadosRequisicao!["passageiro"]["idUsuario"];
+      db.collection("requisicao_ativa")
+      .doc( idPassageiro ).update({
+        "motorista" : motorista.toMap(),
+        "status" : StatusRequisicao.A_CAMINHO,
+      });
+
+      //Salva requisicao ativa para motorista
+      String idMotorista = motorista.idUsuario;
+      db.collection("requisicao_ativa_motorista")
+          .doc( idMotorista )
+          .set({
+        "id_requisicao" : idRequisicao,
+        "id_usuario" : idMotorista,
+        "status" : StatusRequisicao.A_CAMINHO,
+      });
+
+      });
+
+
+  }
+
   @override
   void initState() {
     super.initState();
 
     _recuperaUltimaLocalizacao();
     _adcionarListenerLocalizacao();
+
+    //Recuperar requisicao e
+    // adicionar listener para mudança de status
+    _recuperarReuisicao();
+
 
 
   }
