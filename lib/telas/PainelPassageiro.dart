@@ -33,6 +33,7 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
   );
   Set<Marker> _marcadores = {};
   late String _idRequisicao;
+  late Position _localPassageiro;
 
   //Controles para exibição na tela
   bool _exibirCaixaEnderecoDestino = true;
@@ -65,24 +66,20 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
   }
 
   _adcionarListenerLocalizacao(){
-
     var geolocator = Geolocator();
-    var locationOptions = LocationOptions(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10
-    );
+    var locationOptions = LocationOptions(accuracy: LocationAccuracy.high, distanceFilter: 10);
+
     Geolocator.getPositionStream().listen((Position position) {
 
-      setState(() {
+      if( _idRequisicao != null && _idRequisicao.isNotEmpty ){
 
-        _exibirMarcadorPassageiro( position );
+        //Atualiza local do passageiro
 
-        _posicaoCamera = CameraPosition(
-            target: LatLng(position.latitude, position.longitude),
-            zoom: 19
-        );
-        _movimentarCamera(_posicaoCamera );
-      });
+      } else if( position != null){
+        setState(() {
+          _localPassageiro = position;
+        });
+      }
 
     });
 
@@ -96,14 +93,6 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
     setState(() {
       if( position != null ){
 
-        _exibirMarcadorPassageiro( position );
-
-        _posicaoCamera = CameraPosition(
-            target: LatLng(position.latitude, position.longitude),
-          zoom: 19
-        );
-
-        _movimentarCamera( _posicaoCamera );
       }
     });
 
@@ -223,6 +212,8 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
 
     * */
     Usuario passageiro = await UsuarioFirebase.getDadosUsuarioLogado();
+    passageiro.latitude = _localPassageiro.latitude;
+    passageiro.longitude = _localPassageiro.longitude;
 
     Requisicao requisicao = Requisicao();
     requisicao.destino = destino;
@@ -259,21 +250,27 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
   }
 
   _statusUberNaoChamado(){
-
     _exibirCaixaEnderecoDestino = true;
 
-    _alterarBotaoPrincipal(
-        "Chamar uber",
-        Color(0xff1ebbd8),
-        (){
-          _chamarUber();
-         }
-     );
+    _alterarBotaoPrincipal("Chamar uber", Color(0xff1ebbd8), (){
+      _chamarUber();
+    });
+
+    Position position = Position(
+        latitude: _localPassageiro.latitude,
+        longitude: _localPassageiro.longitude,
+        speed: 10, heading: 0.0, accuracy: 0.0, altitude: 0.0, speedAccuracy: 0.0, timestamp: null
+    );
+
+    _exibirMarcadorPassageiro( position );
+    CameraPosition cameraPosition = CameraPosition(
+        target: LatLng(position.latitude, position.longitude), zoom: 19);
+    _movimentarCamera( cameraPosition );
+
 
   }
 
   _statusAguardando(){
-
     _exibirCaixaEnderecoDestino = false;
 
     _alterarBotaoPrincipal(
@@ -283,7 +280,19 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
           _cancelarUber();
         }
     );
+  }
 
+  _statusACaminho(){
+
+    _exibirCaixaEnderecoDestino = false;
+
+    _alterarBotaoPrincipal(
+        "Motorista a caminho",
+        Colors.grey,
+            (){
+
+        }
+    );
   }
 
   _cancelarUber() async {
@@ -303,52 +312,61 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
 
   }
 
-  _adicionarListenerRequisicaoAtiva() async {
+  _recuperarRequisicaoAtiva() async {
+
     FirebaseAuth auth = FirebaseAuth.instance;
 
     var usuarioLogado = await FirebaseAuth.instance.currentUser;
 
     FirebaseFirestore db = FirebaseFirestore.instance;
-    await db.collection("requisicao_ativa")
-            .doc( usuarioLogado!.uid )
-            .snapshots()
-            .listen((snapshot) {
-              print("dados recuperador: " + snapshot.data().toString());
+    DocumentSnapshot documentSnapshot = await db
+        .collection("requisicao_ativa")
+        .doc( usuarioLogado!.uid )
+        .get();
 
-              /*
-                  Caso tenha uma requisicção ativa
-                    -> altera interface de acordo com status
-                  Caso não tenha
-                    -> Exibe interface padrão para chamar uber
-              */
-              if( snapshot.data() != null){
+    if( documentSnapshot.data() != null ){
 
-                Map<String, dynamic>? dados = snapshot.data();
-                String status = dados!["status"];
-                _idRequisicao = dados!["id_requisicao"];
+      var dados = documentSnapshot.data() as Map<String, dynamic>?;
+      _idRequisicao = dados!["id_requisicao"];
+      _adicionarListenerRequisicao( _idRequisicao );
 
-                switch( status ){
-                  case StatusRequisicao.AGUARDANDO :
-                    _statusAguardando();
-                    break;
-                  case StatusRequisicao.A_CAMINHO :
+    }else {
 
-                    break;
-                  case StatusRequisicao.VIAGEM :
+      _statusUberNaoChamado();
 
-                    break;
-                  case StatusRequisicao.FINALIZADA :
+    }
 
-                    break;
+  }
 
-                }
+  _adicionarListenerRequisicao(String idRequisicao) async {
 
-              }else {
+    FirebaseFirestore db = FirebaseFirestore.instance;
+    await db.collection("requisicoes")
+        .doc( idRequisicao ).snapshots().listen((snapshot) {
 
-                _statusUberNaoChamado();
+      if( snapshot.data() != null){
 
-              }
+        Map<String, dynamic>? dados = snapshot.data();
+        String status = dados!["status"];
+        _idRequisicao = dados!["id_requisicao"];
 
+        switch( status ){
+          case StatusRequisicao.AGUARDANDO :
+            _statusAguardando();
+            break;
+          case StatusRequisicao.A_CAMINHO :
+            _statusACaminho();
+            break;
+          case StatusRequisicao.VIAGEM :
+
+            break;
+          case StatusRequisicao.FINALIZADA :
+
+            break;
+
+        }
+
+      }
 
     });
 
@@ -358,11 +376,12 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
   @override
   void initState() {
     super.initState();
-    _recuperaUltimaLocalizacao();
-    _adcionarListenerLocalizacao();
 
     //adcionar listener para requisicao ativa
-    _adicionarListenerRequisicaoAtiva();
+    _recuperarRequisicaoAtiva();
+
+    //_recuperaUltimaLocalizacao();
+    _adcionarListenerLocalizacao();
 
   }
 

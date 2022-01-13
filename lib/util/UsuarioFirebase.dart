@@ -39,4 +39,13 @@ class UsuarioFirebase {
 
   }
 
+  static atualizarDadosLocalizacao(String idRequisicao, double lat, double lon ) async {
+
+    FirebaseFirestore db = FirebaseFirestore.instance;
+
+    Usuario motorista = await getDadosUsuarioLogado();
+
+
+  }
+
 }
