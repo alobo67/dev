@@ -74,6 +74,11 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
       if( _idRequisicao != null && _idRequisicao.isNotEmpty ){
 
         //Atualiza local do passageiro
+        UsuarioFirebase.atualizarDadosLocalizacao(
+            _idRequisicao,
+            position.latitude,
+            position.longitude
+        );
 
       } else if( position != null){
         setState(() {

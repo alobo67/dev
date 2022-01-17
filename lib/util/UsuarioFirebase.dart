@@ -44,6 +44,14 @@ class UsuarioFirebase {
     FirebaseFirestore db = FirebaseFirestore.instance;
 
     Usuario motorista = await getDadosUsuarioLogado();
+    motorista.latitude = lat;
+    motorista.longitude = lon;
+
+    db.collection("requisicoes")
+    .doc( idRequisicao )
+    .update({
+      "motorista" : motorista.toMap()
+    });
 
 
   }
