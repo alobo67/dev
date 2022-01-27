@@ -15,21 +15,18 @@ import 'package:ubber/util/UsuarioFirebase.dart';
 
 class PainelPassageiro extends StatefulWidget {
   const PainelPassageiro({Key? key}) : super(key: key);
-
   @override
   _PainelPassageiroState createState() => _PainelPassageiroState();
 }
 
 class _PainelPassageiroState extends State<PainelPassageiro> {
-
-  TextEditingController _controllerDestino = TextEditingController(text: "Rua das Primaveras, 270");
-
-  List<String> itensMenu = [
-    "Configurações", "Deslogar"
-  ];
+  TextEditingController _controllerDestino =
+      TextEditingController(text: "Rua das Primaveras, 270");
+  List<String> itensMenu = ["Configurações", "Deslogar"];
   Completer<GoogleMapController> _controller = Completer();
-  CameraPosition _posicaoCamera = CameraPosition(
-    target: LatLng(-23.557425201980767, -46.65672565205034)
+  CameraPosition _posicaoCamera =
+  CameraPosition(target: LatLng(-23.557425201980767, -46.65672565205034),
+    zoom: 16
   );
   Set<Marker> _marcadores = {};
   late String _idRequisicao;
@@ -65,6 +62,7 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
     _controller.complete( controller );
   }
 
+  /*
   _adcionarListenerLocalizacao(){
     var geolocator = Geolocator();
     var locationOptions = LocationOptions(accuracy: LocationAccuracy.high, distanceFilter: 10);
@@ -89,7 +87,23 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
     });
 
   }
+*/
+  _adcionarListenerLocalizacao() {
+    var geolocator = Geolocator();
+    var locationOptions =
+    LocationOptions(accuracy: LocationAccuracy.high, distanceFilter: 10);
 
+    Geolocator.getPositionStream().listen((Position position) {
+      _exibirMarcadorPassageiro(position);
+
+      _posicaoCamera = CameraPosition(
+          target: LatLng(position.latitude, position.longitude), zoom: 19);
+      _localPassageiro = position;
+      _movimentarCamera(_posicaoCamera);
+    });
+  }
+
+/*
   _recuperaUltimaLocalizacao() async {
 
     Position? position = await Geolocator
@@ -101,6 +115,24 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
       }
     });
 
+  }
+  */
+
+
+  _recuperaUltimaLocalizacao() async {
+    Position? position = await Geolocator
+        .getLastKnownPosition();
+
+    setState(() {
+      if (position != null) {
+        _exibirMarcadorPassageiro(position);
+
+        _posicaoCamera = CameraPosition(
+            target: LatLng(position.latitude, position.longitude), zoom: 19);
+        _localPassageiro = position;
+        _movimentarCamera(_posicaoCamera);
+      }
+    });
   }
 
   _movimentarCamera( CameraPosition cameraPosition ) async {
@@ -120,25 +152,18 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
 
     BitmapDescriptor.fromAssetImage(
         ImageConfiguration(devicePixelRatio: pixeRatio),
-        "imagens/passageiro.png"
-    ).then((BitmapDescriptor icone) {
-
+        "imagens/passageiro.png")
+        .then((BitmapDescriptor icone) {
       Marker marcadorPassageiro = Marker(
           markerId: MarkerId("marcador-passageiro"),
           position: LatLng(local.latitude, local.longitude),
-          infoWindow: InfoWindow(
-              title: "Meu local"
-          ),
-          icon: icone
-      );
+          infoWindow: InfoWindow(title: "Meu local"),
+          icon: icone);
 
       setState(() {
         _marcadores.add( marcadorPassageiro );
       });
-
     });
-
-
   }
 
   _chamarUber() async {
@@ -254,6 +279,7 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
 
   }
 
+  /*
   _statusUberNaoChamado(){
     _exibirCaixaEnderecoDestino = true;
 
@@ -274,17 +300,22 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
 
 
   }
+*/
+
+  _statusUberNaoChamado() {
+    _exibirCaixaEnderecoDestino = true;
+
+    _alterarBotaoPrincipal("Chamar uber", Color(0xff1ebbd8), () {
+      _chamarUber();
+    });
+  }
 
   _statusAguardando(){
     _exibirCaixaEnderecoDestino = false;
 
-    _alterarBotaoPrincipal(
-        "Cancelar",
-        Colors.red,
-            (){
+    _alterarBotaoPrincipal("Cancelar",Colors.red, (){
           _cancelarUber();
-        }
-    );
+        });
   }
 
   _statusACaminho(){
@@ -296,8 +327,7 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
         Colors.grey,
             (){
 
-        }
-    );
+        });
   }
 
   _cancelarUber() async {
@@ -377,7 +407,6 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
 
   }
 
-
   @override
   void initState() {
     super.initState();
@@ -385,7 +414,7 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
     //adcionar listener para requisicao ativa
     _recuperarRequisicaoAtiva();
 
-    //_recuperaUltimaLocalizacao();
+    _recuperaUltimaLocalizacao();
     _adcionarListenerLocalizacao();
 
   }
@@ -399,16 +428,12 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
           PopupMenuButton<String>(
             onSelected: _escolhaMenuItem,
             itemBuilder: (context){
-
               return itensMenu.map((String item){
-
                 return PopupMenuItem<String>(
                   value: item,
                   child: Text(item),
                 );
-
               }).toList();
-
             },
           )
         ],
