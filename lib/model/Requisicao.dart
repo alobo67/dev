@@ -16,7 +16,7 @@ class Requisicao {
 
     DocumentReference ref = db.collection("requisicoes").doc();
     this.id = ref.id;
-print('veja isso');
+
   }
 
   Map<String, dynamic> toMap() {

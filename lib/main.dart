@@ -5,8 +5,7 @@ import 'package:ubber/Rotas.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 final ThemeData temaPadrao = ThemeData(
-    primaryColor: Color(0xff37474f),
-    accentColor: Color(0xff546e7a)
+    primaryColor: Color(0xff37474f), colorScheme: ColorScheme.fromSwatch().copyWith(secondary: Color(0xff546e7a))
 );
 
 void main() async {

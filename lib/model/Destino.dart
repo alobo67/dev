@@ -5,6 +5,7 @@ class Destino {
   late String _cidade;
   late String _bairro;
   late String _cep;
+
   late double _latitude;
   late double _longitude;
 

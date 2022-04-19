@@ -16,9 +16,7 @@ class PainelMotorista extends StatefulWidget {
 
 class _PainelMotoristaState extends State<PainelMotorista> {
 
-  List<String> itensMenu = [
-    "Configurações", "Deslogar"
-  ];
+  List<String> itensMenu = ["Configurações", "Deslogar"];
   final _controller = StreamController<QuerySnapshot>.broadcast();
   FirebaseFirestore db = FirebaseFirestore.instance;
 

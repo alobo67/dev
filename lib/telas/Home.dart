@@ -113,14 +113,11 @@ class _HomeState extends State<Home> {
       _redirecionaPainelPorTipoUsuario(idUsuario);
     }
 
-
-
   }
 
   @override
   void initState() {
     super.initState();
-
     _verificarUsuarioLogado();
 
   }
