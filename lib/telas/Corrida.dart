@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:ubber/model/Usuario.dart';
 import 'package:ubber/util/StatusRequisicao.dart';
 import 'package:ubber/util/UsuarioFirebase.dart';
+import 'package:intl/intl.dart';
 
 class Corrida extends StatefulWidget {
 
@@ -68,7 +69,8 @@ class _CorridaState extends State<Corrida> {
               UsuarioFirebase.atualizarDadosLocalizacao(
                   _idRequisicao,
                   position.latitude,
-                  position.longitude
+                  position.longitude,
+                "motorista"
               );
             }else{//aguardando
               setState(() {
@@ -120,9 +122,7 @@ class _CorridaState extends State<Corrida> {
       setState(() {
         _marcadores.add( marcador );
       });
-
     });
-
 
   }
 
@@ -162,7 +162,10 @@ class _CorridaState extends State<Corrida> {
             _statusEmViagem();
             break;
           case StatusRequisicao.FINALIZADA :
-
+            _statusFinalizada();
+            break;
+          case StatusRequisicao.CONFIRMADA :
+            _statusConfirmada();
             break;
 
         }
@@ -256,6 +259,102 @@ class _CorridaState extends State<Corrida> {
   }
 
   _finalizarCorrida(){
+
+    FirebaseFirestore db = FirebaseFirestore.instance;
+    db.collection("requisicoes")
+    .doc( _idRequisicao )
+    .update({
+      "status" : StatusRequisicao.FINALIZADA
+    });
+
+    String idPassageiro = _dadosRequisicao!["passageiro"]["idUsuario"];
+    db.collection("requisicao_ativa")
+        .doc( idPassageiro )
+        .update({"status" : StatusRequisicao.FINALIZADA});
+
+    String idMotorista = _dadosRequisicao!["motorista"]["idUsuario"];
+    db.collection("requisicao_ativa_motorista")
+        .doc( idMotorista )
+        .update({"status" : StatusRequisicao.FINALIZADA});
+
+
+
+  }
+
+  _statusFinalizada() async {
+
+    //Calcula valor da corrida
+    double latitudeDestino = _dadosRequisicao!["passageiro"]["latitude"];
+    double longitudeDestino = _dadosRequisicao!["passageiro"]["longitude"];
+
+    double latitudeOrigem = _dadosRequisicao!["origem"]["latitude"];
+    double longitudeOrigem = _dadosRequisicao!["origem"]["longitude"];
+
+    double distanciaEmMetros = await Geolocator.distanceBetween(
+        latitudeOrigem,
+        longitudeOrigem,
+        latitudeDestino,
+        longitudeDestino
+    );
+
+    //Converte para KM
+    double distanciaKm = distanciaEmMetros / 1000;
+
+    //8 é o valor cobrado por km
+    double valorViagem = distanciaKm * 8;
+
+    //Formatar valor viagem
+    var f = NumberFormat('#,##0.00', 'pt_BR');
+    var valorViagemFormatado = f.format( valorViagem );
+
+    _mensagemStatus = "Viagem finalizada";
+    _alterarBotaoPrincipal(
+        "Confirmar - R\$ ${valorViagemFormatado}",
+        Color(0xff1ebbd8),
+            () {
+          _confirmarCorrida();
+        }
+    );
+
+    _marcadores = {};
+    Position position = Position(
+        latitude: latitudeDestino, longitude:longitudeDestino, speedAccuracy: 10, speed: 0.0, heading: 0.0, altitude: 0.0, timestamp: null, accuracy: 0.0
+    );
+    _exibirMarcador(
+        position,
+        "imagens/destino.png",
+        "Destino"
+    );
+
+    CameraPosition cameraPosition = CameraPosition(
+        target: LatLng(position.latitude, position.longitude),zoom: 19);
+
+    _movimentarCamera( cameraPosition );
+
+  }
+
+  _statusConfirmada(){
+    Navigator.pushReplacementNamed(context, "/painel-motorista");
+  }
+
+  _confirmarCorrida(){
+
+    FirebaseFirestore db = FirebaseFirestore.instance;
+    db.collection("requisicoes")
+        .doc( _idRequisicao )
+        .update({
+       "status" : StatusRequisicao.CONFIRMADA
+    });
+
+    String idPassageiro = _dadosRequisicao!["passageiro"]["idUsuario"];
+    db.collection("requisicao_ativa")
+        .doc( idPassageiro )
+        .delete();
+
+    String idMotorista = _dadosRequisicao!["motorista"]["idUsuario"];
+    db.collection("requisicao_ativa_motorista")
+        .doc( idMotorista )
+        .delete();
 
   }
 

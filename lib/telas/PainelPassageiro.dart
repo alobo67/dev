@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
 import 'package:geocoding/geocoding.dart';
+import 'package:intl/intl.dart';
 
 import 'package:ubber/model/Destino.dart';
 import 'package:ubber/model/Requisicao.dart';
@@ -100,7 +101,8 @@ class _PainelPassageiroState extends State<PainelPassageiro>  {
         UsuarioFirebase.atualizarDadosLocalizacao(
             _idRequisicao,
             position.latitude,
-            position.longitude
+            position.longitude,
+            "passageiro"
         );
 
       }else{
@@ -337,11 +339,11 @@ print("aqui q ta pegando");
 
         });
 
-    double latitudeDestino = _dadosRequisicao!["passageiro"]["latitude"];
-    double longitudeDestino = _dadosRequisicao!["passageiro"]["longitude"];
+    double latitudeDestino = _dadosRequisicao["passageiro"]["latitude"];
+    double longitudeDestino = _dadosRequisicao["passageiro"]["longitude"];
 
-    double latitudeOrigem = _dadosRequisicao!["motorista"]["latitude"];
-    double longitudeOrigem = _dadosRequisicao!["motorista"]["longitude"];
+    double latitudeOrigem = _dadosRequisicao["motorista"]["latitude"];
+    double longitudeOrigem = _dadosRequisicao["motorista"]["longitude"];
 
     Marcador marcadorOrigem = Marcador(
         LatLng(latitudeOrigem, longitudeOrigem),
@@ -369,11 +371,11 @@ print("aqui q ta pegando");
         null
     );
 
-    double latitudeDestino = _dadosRequisicao!["passageiro"]["latitude"];
-    double longitudeDestino = _dadosRequisicao!["passageiro"]["longitude"];
+    double latitudeDestino = _dadosRequisicao["passageiro"]["latitude"];
+    double longitudeDestino = _dadosRequisicao["passageiro"]["longitude"];
 
-    double latitudeOrigem = _dadosRequisicao!["motorista"]["latitude"];
-    double longitudeOrigem = _dadosRequisicao!["motorista"]["longitude"];
+    double latitudeOrigem = _dadosRequisicao["motorista"]["latitude"];
+    double longitudeOrigem = _dadosRequisicao["motorista"]["longitude"];
 
     Marcador marcadorOrigem = Marcador(
       LatLng(latitudeOrigem, longitudeOrigem),
@@ -386,6 +388,108 @@ print("aqui q ta pegando");
         "Local destino");
 
     _exibirCentralizarDoisMarcadores(marcadorOrigem, marcadorDestino);
+
+  }
+
+  _statusFinalizada() async {
+
+    //Calcula valor da corrida
+    double latitudeDestino = _dadosRequisicao!["passageiro"]["latitude"];
+    double longitudeDestino = _dadosRequisicao!["passageiro"]["longitude"];
+
+    double latitudeOrigem = _dadosRequisicao!["origem"]["latitude"];
+    double longitudeOrigem = _dadosRequisicao!["origem"]["longitude"];
+
+    double distanciaEmMetros = await Geolocator.distanceBetween(
+        latitudeOrigem,
+        longitudeOrigem,
+        latitudeDestino,
+        longitudeDestino
+    );
+
+    //Converte para KM
+    double distanciaKm = distanciaEmMetros / 1000;
+
+    //8 é o valor cobrado por km
+    double valorViagem = distanciaKm * 8;
+
+    //Formatar valor viagem
+    var f = NumberFormat('#,##0.00', 'pt_BR');
+    var valorViagemFormatado = f.format( valorViagem );
+
+    _alterarBotaoPrincipal(
+        "Total - R\$ ${valorViagemFormatado}",
+        Colors.green,
+            () {}
+    );
+
+    _marcadores = {};
+
+    Position position = Position(
+        latitude: latitudeDestino, longitude:longitudeDestino, speedAccuracy: 10, speed: 0.0, heading: 0.0, altitude: 0.0, timestamp: null, accuracy: 0.0
+    );
+    _exibirMarcador(
+        position,
+        "imagens/destino.png",
+        "Destino"
+    );
+
+    CameraPosition cameraPosition = CameraPosition(
+        target: LatLng(position.latitude, position.longitude),zoom: 19);
+
+    _movimentarCamera( cameraPosition );
+
+  }
+
+  _statusConfirmada(){
+
+    if( _streamSubscriptionRequisicoes != null)
+      _streamSubscriptionRequisicoes.cancel();
+
+    _exibirCaixaEnderecoDestino = true;
+    _alterarBotaoPrincipal(
+        "Chamar uber",
+        Color(0xff1ebbd8), () {
+      _chamarUber();
+    });
+
+
+    double passageiroLat = _dadosRequisicao["passageiro"]["latitude"];
+    double passageiroLon = _dadosRequisicao["passageiro"]["longitude"];
+
+    Position position = Position(
+        latitude: passageiroLat,
+        longitude: passageiroLon,
+        speed: 10, heading: 0.0, accuracy: 0.0, altitude: 0.0, speedAccuracy: 0.0, timestamp: null
+    );
+    _exibirMarcadorPassageiro( position );
+    CameraPosition cameraPosition = CameraPosition(
+        target: LatLng(position.latitude, position.longitude), zoom: 19);
+    _movimentarCamera( cameraPosition );
+
+    _dadosRequisicao = {};
+
+
+  }
+
+  _exibirMarcador(Position local, String icone, String infoWindow) async {
+
+    double pixeRatio =  MediaQuery.of(context).devicePixelRatio;
+
+    BitmapDescriptor.fromAssetImage(
+        ImageConfiguration(devicePixelRatio: pixeRatio),
+        icone
+    ).then((BitmapDescriptor bitmapDescriptor) {
+      Marker marcador = Marker(
+          markerId: MarkerId(icone),
+          position: LatLng(local.latitude, local.longitude),
+          infoWindow: InfoWindow(title: infoWindow),
+          icon: bitmapDescriptor);
+
+      setState(() {
+        _marcadores.add( marcador );
+      });
+    });
 
   }
 
@@ -496,6 +600,16 @@ print("aqui q ta pegando");
       db.collection("requisicao_ativa")
           .doc( usuarioLogado!.uid )
           .delete();
+
+      _statusUberNaoChamado();
+
+      if( _streamSubscriptionRequisicoes != null ){
+        _streamSubscriptionRequisicoes.cancel();
+
+      }
+
+
+
     });
 
   }
@@ -536,8 +650,8 @@ print("aqui q ta pegando");
 
         Map<String, dynamic>? dados = snapshot.data();
         _dadosRequisicao = dados!;
-        String status = dados!["status"];
-        _idRequisicao = dados!["id_requisicao"];
+        String status = dados["status"];
+        _idRequisicao = dados["id"];
 
         switch( status ){
           case StatusRequisicao.AGUARDANDO :
@@ -550,7 +664,10 @@ print("aqui q ta pegando");
             _statusEmViagem();
             break;
           case StatusRequisicao.FINALIZADA :
-
+            _statusFinalizada();
+            break;
+          case StatusRequisicao.CONFIRMADA :
+            _statusConfirmada();
             break;
 
         }
